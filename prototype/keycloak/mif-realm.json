@@ -1,0 +1,268 @@
+{
+  "realm": "mif",
+  "enabled": true,
+  "displayName": "MIF node",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 14400,
+  "ssoSessionMaxLifespan": 36000,
+  "eventsEnabled": true,
+  "eventsExpiration": 604800,
+  "enabledEventTypes": [
+    "LOGIN",
+    "LOGIN_ERROR",
+    "LOGOUT",
+    "IDENTITY_PROVIDER_LOGIN",
+    "IDENTITY_PROVIDER_LOGIN_ERROR",
+    "IDENTITY_PROVIDER_FIRST_LOGIN"
+  ],
+  "adminEventsEnabled": true,
+  "webAuthnPolicyPasswordlessRpEntityName": "MIF",
+  "webAuthnPolicyPasswordlessUserVerificationRequirement": "required",
+  "roles": {
+    "realm": [
+      {
+        "name": "continuity-eligible",
+        "description": "Managed by mif-node: user holds a fresh, unrevoked identity snapshot"
+      },
+      {
+        "name": "finance-approver",
+        "description": "Example high-risk role, synced from the upstream IdP"
+      }
+    ]
+  },
+  "browserFlow": "mif-normal",
+  "authenticationFlows": [
+    {
+      "alias": "mif-normal",
+      "description": "Normal mode: every interactive login is verified live by the upstream IdP",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10
+        },
+        {
+          "authenticator": "identity-provider-redirector",
+          "authenticatorConfig": "mif-upstream-redirect",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 20
+        }
+      ]
+    },
+    {
+      "alias": "mif-continuity",
+      "description": "Degraded mode: passkey login, only for users holding a fresh identity snapshot",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10
+        },
+        {
+          "authenticatorFlow": true,
+          "flowAlias": "mif-continuity-passkey",
+          "requirement": "ALTERNATIVE",
+          "priority": 20
+        }
+      ]
+    },
+    {
+      "alias": "mif-continuity-passkey",
+      "description": "Passkey, then the snapshot gate",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "webauthn-authenticator-passwordless",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorConfig": "mif-passkey-amr"
+        },
+        {
+          "authenticatorFlow": true,
+          "flowAlias": "mif-continuity-snapshot-gate",
+          "requirement": "CONDITIONAL",
+          "priority": 20
+        }
+      ]
+    },
+    {
+      "alias": "mif-continuity-snapshot-gate",
+      "description": "Deny users who do not hold the continuity-eligible role",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-role",
+          "authenticatorConfig": "mif-not-continuity-eligible",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10
+        },
+        {
+          "authenticator": "deny-access-authenticator",
+          "authenticatorConfig": "mif-deny-no-snapshot",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20
+        }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "mif-upstream-redirect",
+      "config": {
+        "defaultProvider": "entra",
+        "default.reference.value": "mif:upstream",
+        "default.reference.maxAge": "36000"
+      }
+    },
+    {
+      "alias": "mif-not-continuity-eligible",
+      "config": {
+        "condUserRole": "continuity-eligible",
+        "negate": "true"
+      }
+    },
+    {
+      "alias": "mif-deny-no-snapshot",
+      "config": {
+        "denyErrorMessage": "Continuity sign-in is not available for this account: no fresh identity snapshot."
+      }
+    },
+    {
+      "alias": "mif-passkey-amr",
+      "config": {
+        "default.reference.value": "mif:passkey",
+        "default.reference.maxAge": "36000"
+      }
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "entra",
+      "displayName": "Microsoft Entra ID",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${MIF_UPSTREAM_CLIENT_ID}",
+        "clientSecret": "${MIF_UPSTREAM_CLIENT_SECRET}",
+        "clientAuthMethod": "client_secret_post",
+        "issuer": "${MIF_UPSTREAM_ISSUER}",
+        "authorizationUrl": "${MIF_UPSTREAM_AUTHORIZATION_URL}",
+        "tokenUrl": "${MIF_UPSTREAM_TOKEN_URL}",
+        "jwksUrl": "${MIF_UPSTREAM_JWKS_URL}",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "pkceEnabled": "true",
+        "pkceMethod": "S256",
+        "defaultScope": "openid profile email",
+        "syncMode": "FORCE"
+      }
+    }
+  ],
+  "identityProviderMappers": [
+    {
+      "name": "finance-approver",
+      "identityProviderAlias": "entra",
+      "identityProviderMapper": "oidc-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "roles",
+        "claim.value": "finance-approver",
+        "role": "finance-approver"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "demo-portal",
+      "name": "MIF demo portal",
+      "secret": "dev-only-portal-secret",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:5080/*"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:5080/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "mif_idp",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "config": {
+            "user.session.note": "identity_provider",
+            "claim.name": "mif_idp",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "mif-node",
+      "name": "MIF node (snapshot service + continuity controller)",
+      "secret": "dev-only-node-secret",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "defaultClientScopes": [
+        "basic",
+        "roles",
+        "kc-admin-api"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-mif-node",
+      "enabled": true,
+      "serviceAccountClientId": "mif-node",
+      "clientRoles": {
+        "realm-management": [
+          "manage-realm",
+          "manage-users",
+          "view-events"
+        ]
+      }
+    }
+  ],
+  "webAuthnPolicyPasswordlessResidentKey": "required"
+}

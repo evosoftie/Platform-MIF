@@ -412,7 +412,7 @@ Snapshots must be:
   "iat": 1776144000,
   "exp": 1776147600,
   "assurance": "AAL2",
-  "fallback_scope": ["mail.read", "records.search"],
+  "fallback_scope": ["chat.read", "records.search"],
   "source_assertions": [
     "entra",
     "national_eid"

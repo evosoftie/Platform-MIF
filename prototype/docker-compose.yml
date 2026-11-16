@@ -1,0 +1,105 @@
+# MIF private-mesh prototype: a local simulation of one MIF node with a stand-in for Entra.
+# Every secret in this file is a throwaway value for local use. Do not reuse any of it in a deployment.
+#
+#   docker compose up -d --build      start everything
+#   docker compose stop fake-entra    simulate the upstream outage
+#   docker compose start fake-entra   end it
+#   docker compose down -v            remove everything, including data
+name: mif-prototype
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: mif
+      POSTGRES_PASSWORD: mif-dev-only
+      POSTGRES_DB: keycloak
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mif -d keycloak"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: keycloak/keycloak:26.8.2   # same image as quay.io/keycloak/keycloak
+    command: start-dev --import-realm
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin-dev-only
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: mif
+      KC_DB_PASSWORD: mif-dev-only
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      MIF_UPSTREAM_CLIENT_ID: mif-broker
+      MIF_UPSTREAM_CLIENT_SECRET: dev-only-broker-secret
+      MIF_UPSTREAM_ISSUER: http://localhost:8090/realms/upstream
+      MIF_UPSTREAM_AUTHORIZATION_URL: http://localhost:8090/realms/upstream/protocol/openid-connect/auth
+      MIF_UPSTREAM_TOKEN_URL: http://fake-entra:8080/realms/upstream/protocol/openid-connect/token
+      MIF_UPSTREAM_JWKS_URL: http://fake-entra:8080/realms/upstream/protocol/openid-connect/certs
+    volumes:
+      - ./keycloak/mif-realm.json:/opt/keycloak/data/import/mif-realm.json:ro
+    ports:
+      - "8080:8080"
+
+  # Stand-in for Microsoft Entra ID. Stop this container to simulate the outage.
+  fake-entra:
+    image: keycloak/keycloak:26.8.2
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin-dev-only
+      KC_HOSTNAME: http://localhost:8090
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    volumes:
+      - ./keycloak/upstream-realm.json:/opt/keycloak/data/import/upstream-realm.json:ro
+    ports:
+      - "8090:8080"
+
+  # Snapshot service + continuity controller.
+  mif-node:
+    build:
+      context: .
+      args: { PROJECT: Mif.Node }
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      Mif__Database: Host=postgres;Database=keycloak;Username=mif;Password=mif-dev-only
+      Mif__Keycloak__BaseUrl: http://keycloak:8080
+      Mif__Keycloak__ClientSecret: dev-only-node-secret
+      Mif__Upstream__DiscoveryUrl: http://fake-entra:8080/realms/upstream/.well-known/openid-configuration
+      Mif__Upstream__ProbeTokenUrl: http://fake-entra:8080/realms/upstream/protocol/openid-connect/token
+      Mif__Upstream__ProbeClientId: mif-probe
+      Mif__Upstream__ProbeClientSecret: dev-only-probe-secret
+      Mif__Upstream__TimeoutSeconds: "3"
+      # Fast thresholds so the demo reacts in seconds. See docs/profiles/private-mesh.md for real values.
+      Mif__Continuity__ProbeIntervalSeconds: "3"
+      Mif__Continuity__FailureThreshold: "2"
+      Mif__Continuity__RecoveryThreshold: "2"
+      Mif__Snapshot__Issuer: mif-node.prototype.local
+      Mif__Snapshot__KeyDirectory: /data/keys
+      Mif__Snapshot__PollSeconds: "2"
+    volumes:
+      - mif-keys:/data/keys
+    ports:
+      - "8088:8080"            # public: /status, /healthz, JWKS, snapshot verification
+      - "127.0.0.1:8081:8081"  # operator: loopback only
+
+  # Example application. It trusts the MIF node and nothing else.
+  demo-portal:
+    build:
+      context: .
+      args: { PROJECT: Mif.DemoApp }
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "5080"
+      Oidc__Authority: http://keycloak:8080/realms/mif
+      Oidc__ClientSecret: dev-only-portal-secret
+      MifNode__StatusUrl: http://mif-node:8080/status
+    ports:
+      - "5080:5080"
+
+volumes:
+  mif-keys:

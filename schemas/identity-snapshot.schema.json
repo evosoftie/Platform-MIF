@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/evosoftie/platform-mif/schemas/identity-snapshot.schema.json",
+  "title": "MIF identity snapshot (v0)",
+  "description": "Payload of an identity snapshot: a compact JWS (ES256) with header typ \"mif-snapshot+jwt\". It records that an upstream identity provider verified a subject live at a point in time, and it is the only thing that makes a subject eligible for continuity sign-in until it expires. See spec.md section 9.",
+  "type": "object",
+  "required": ["iss", "sub", "jti", "iat", "exp", "verified_at", "source_idp", "assurance", "roles"],
+  "additionalProperties": false,
+  "properties": {
+    "iss": {
+      "type": "string",
+      "description": "Logical name of the issuing MIF node. An active node and its standby use the same value and different signing keys."
+    },
+    "sub": {
+      "type": "string",
+      "description": "Subject identifier. Identical to the sub claim of the tokens the node issues for this subject."
+    },
+    "jti": {
+      "type": "string",
+      "description": "Unique identifier of this snapshot. Revocation and audit records refer to it."
+    },
+    "iat": {
+      "type": "integer",
+      "description": "When the snapshot was signed (seconds since the epoch)."
+    },
+    "exp": {
+      "type": "integer",
+      "description": "When the snapshot stops conferring eligibility. Always verified_at plus the policy lifetime, never extended."
+    },
+    "verified_at": {
+      "type": "integer",
+      "description": "When the upstream provider last verified the subject live. Expiry is anchored to this, not to iat."
+    },
+    "source_idp": {
+      "type": "string",
+      "description": "Alias of the upstream identity provider that performed the live verification."
+    },
+    "source_sub": {
+      "type": "string",
+      "description": "The subject's identifier at the upstream provider, when known."
+    },
+    "assurance": {
+      "type": "string",
+      "enum": ["AAL0", "AAL1", "AAL2", "AAL3"],
+      "description": "Assurance of the live verification this snapshot records (spec.md section 11). A session later opened from the snapshot is FAL1, never this level."
+    },
+    "preferred_username": {
+      "type": "string"
+    },
+    "roles": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "description": "Business roles held at verification time. The restricted claim set: no profile data beyond what authorisation needs."
+    }
+  }
+}

@@ -204,12 +204,15 @@ Simulate provider outage → observe degraded-mode behaviour and scope enforceme
 
 ```
 mif/
-├─ docs/
-├─ schemas/
+├─ spec.md                      draft specification
+├─ docs/profiles/               concrete deployment profiles of the spec
+├─ schemas/                     JSON Schemas for snapshots and token claims
 ├─ examples/
-├─ prototype/
+├─ prototype/                   runnable prototype (Keycloak + ASP.NET Core)
 └─ README.md
 ```
+
+Start with the [private-mesh profile](docs/profiles/private-mesh.md): one organisation, Entra as the upstream, and passkey sign-in to self-hosted services when Entra is down. The [prototype](prototype/README.md) simulates that outage end to end with `docker compose`.
 
 ---
 

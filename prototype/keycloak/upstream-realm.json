@@ -1,0 +1,72 @@
+{
+  "realm": "upstream",
+  "enabled": true,
+  "displayName": "Fake Entra (prototype upstream IdP)",
+  "sslRequired": "none",
+  "roles": {
+    "realm": [
+      { "name": "finance-approver", "description": "Stand-in for an Entra app role" }
+    ]
+  },
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@org.example",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Murphy",
+      "credentials": [{ "type": "password", "value": "alice-dev-only", "temporary": false }],
+      "realmRoles": ["finance-approver"]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@org.example",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Byrne",
+      "credentials": [{ "type": "password", "value": "bob-dev-only", "temporary": false }]
+    },
+    {
+      "username": "service-account-mif-probe",
+      "enabled": true,
+      "serviceAccountClientId": "mif-probe"
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "mif-broker",
+      "name": "MIF broker (stand-in for the Entra app registration)",
+      "secret": "dev-only-broker-secret",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:8080/realms/mif/broker/entra/endpoint"],
+      "protocolMappers": [
+        {
+          "name": "roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "mif-probe",
+      "name": "MIF synthetic sign-in probe (no permissions)",
+      "secret": "dev-only-probe-secret",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ]
+}

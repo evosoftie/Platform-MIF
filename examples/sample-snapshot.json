@@ -1,0 +1,13 @@
+{
+  "iss": "mif-node.prototype.local",
+  "sub": "b3d1e762-01c8-4af7-b5e1-e08b064bdcae",
+  "jti": "2f2b1f92-280e-4b4a-8ca2-5a78be6dca51",
+  "iat": 1794789374,
+  "exp": 1795048574,
+  "verified_at": 1794789374,
+  "source_idp": "entra",
+  "source_sub": "16896398-06f4-41a9-96ea-414f5a5e22ba",
+  "assurance": "AAL1",
+  "preferred_username": "alice",
+  "roles": ["finance-approver"]
+}
