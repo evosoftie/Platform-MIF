@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/evosoftie/platform-mif/schemas/mif-token-claims.schema.json",
+  "title": "MIF token claims (v0, private-mesh profile)",
+  "description": "Claims an application can rely on in ID and access tokens issued by a MIF node running the private-mesh profile. Standard OIDC claims not listed here may also be present.",
+  "type": "object",
+  "required": ["iss", "sub", "iat", "exp"],
+  "properties": {
+    "iss": {
+      "type": "string",
+      "description": "The MIF node. Applications trust this issuer and no upstream provider directly."
+    },
+    "sub": {
+      "type": "string",
+      "description": "Stable subject identifier at the MIF node, the same in normal and continuity sessions."
+    },
+    "iat": { "type": "integer" },
+    "exp": { "type": "integer" },
+    "preferred_username": { "type": "string" },
+    "roles": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Roles as of the last live upstream verification."
+    },
+    "mif_idp": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Alias of the upstream provider that verified this sign-in session live. ABSENT for a continuity session (passkey plus identity snapshot). Applications must treat a missing or empty value as continuity and restrict high-risk operations: the check fails closed."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "iss": "http://localhost:8080/realms/mif",
+  "sub": "b3d1e762-01c8-4af7-b5e1-e08b064bdcae",
+  "iat": 1794789441,
+  "exp": 1794789741,
+  "preferred_username": "alice",
+  "roles": ["finance-approver", "continuity-eligible"]
+}

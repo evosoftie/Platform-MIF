@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mif.Client/Mif.Client.csproj" />
+    <Project Path="src/Mif.DemoApp/Mif.DemoApp.csproj" />
+    <Project Path="src/Mif.Node/Mif.Node.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Mif.Node.Tests/Mif.Node.Tests.csproj" />
+  </Folder>
+</Solution>
