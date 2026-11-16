@@ -71,7 +71,7 @@ Sharing the VM with the VPN proxy is fine for a pilot. Be aware that the tunnel 
 | Audit | `mif-node`, hash-chained log in Postgres |
 | Trust Anchor Management | Keycloak realm keys for tokens, a node-held ES256 key for snapshots |
 
-Not implemented in v0: the *partitioned federation* and *emergency continuity* modes, more than one upstream, and assurance levels above "verified live" versus "continuity".
+Not implemented in v0: the *partitioned federation* and *emergency continuity* modes, more than one upstream, and assurance levels above "verified live" versus "continuity". §11 lists where the prototype falls short of requirements the spec calls mandatory.
 
 ## 5. Modes and what people see
 
@@ -121,6 +121,8 @@ During an outage the node cannot learn that Entra disabled an account. Two contr
 - **Lifetime.** Access ends at most one snapshot lifetime after the last live sign-in.
 - **Local revocation.** An operator revokes a user on the node. Their snapshots are revoked, their sessions end, and passkey sign-in is refused. The revocation holds until Entra next verifies the user live, at which point Entra is the source of truth again.
 
+Local revocation is the manual form of the spec's kill switch (§15.4): it is independent of Entra, takes effect at once and is logged. It is not yet an event bus that HR or security tooling can publish to.
+
 ### 6.4 Signing keys
 
 Each node holds its own ES256 key on local disk and publishes the public half at `/.well-known/mif/jwks.json`. A node accepts snapshots signed by itself and by the peers whose public keys are in its `trusted/` directory. Exchanging those public keys between the Azure node and the on-prem standby is a one-time setup step.
@@ -151,7 +153,7 @@ Schema: [`schemas/mif-token-claims.schema.json`](../../schemas/mif-token-claims.
 
 Applications decide with one rule: *no `mif_idp`, no high-risk operations*. The rule fails closed, so a misconfigured token is treated as continuity, never as live. For ASP.NET Core this is the `Mif.LiveIdentity` policy in `Mif.Client`.
 
-The spec's explicit `continuity_mode` and `assurance` claims (§22) are not emitted in v0. Producing them truthfully per session needs a custom Keycloak mapper, which is listed under next steps.
+The spec (§22) requires degraded tokens to carry the `offline_fallback` scope and `degraded: true`. v0 does not emit them: the absence of `mif_idp` stands in for both. Producing them truthfully per session needs a custom Keycloak mapper, which is listed under next steps.
 
 ## 9. Azure node and on-prem standby
 
@@ -183,7 +185,21 @@ The third row is the cost of this design: applications that trust the node depen
 - A stolen device with an unlocked passkey gives continuity access until the snapshot expires or an operator revokes the user. Require user verification on the passkey (PIN or biometric), which this profile does.
 - The prototype runs Keycloak in development mode over plain HTTP with throwaway secrets. None of that configuration is for deployment.
 
-## 11. Next steps
+## 11. Gaps against the spec
+
+The spec marks several things as not optional for production. This is where v0 stands on each.
+
+| Spec requirement | v0 |
+|---|---|
+| `offline_fallback` scope and `degraded: true` on degraded tokens (§13.2, §22) | **Not met.** Absence of `mif_idp` carries the same meaning and fails closed, but it is not the spec's signal. |
+| Applications deny privileged operations by default in degraded mode (§12.3) | Met in the demo portal through the `Mif.LiveIdentity` policy. There is no central policy engine (OPA). |
+| Out-of-band kill switch, revocation applied within 60 seconds (§15.4) | **Partly met.** Manual revocation on the node is immediate and independent of Entra. There is no event bus. |
+| Degraded tokens live at most 30 minutes (§13.2) | Met: access tokens live 5 minutes. A degraded session itself lasts until it idles out or reaches its maximum age, the snapshot expires, an operator revokes it, or recovery. |
+| All degraded sessions invalidated at recovery (§13.5) | Met: the node ends every session. |
+| Audit entry for every session active during degraded mode (§13.5) | **Not met.** Mode changes, snapshots, revocations and the session sweep are logged; individual degraded sign-ins are only in the broker's own event log. |
+| Two demo applications, low risk and high risk (§21) | One portal with one low-risk and one high-risk action. |
+
+## 12. Next steps
 
 **To pilot phase 1**
 
@@ -195,7 +211,8 @@ The third row is the cost of this design: applications that trust the node depen
 
 **Engineering follow-ups**
 
-- A Keycloak authenticator that verifies the snapshot signature at sign-in, and a mapper that emits `continuity_mode` and `assurance`.
+- A Keycloak mapper that emits the `offline_fallback` scope, `degraded` and `continuity_mode` per session, and an authenticator that verifies the snapshot signature at sign-in.
+- A kill-switch consumer (Redis Pub/Sub or NATS) that feeds the node's existing revocation path, and an audit record for every degraded sign-in.
 - Check that the user is still enabled in Entra when refreshing a snapshot, not only that they signed in.
 - Per-application fallback policy held by the node, so the broker can refuse continuity sign-in to applications that must never allow it.
 - Automated failover and a health-checked issuer hostname.
